@@ -46,7 +46,46 @@ async function playNotification() {
 }
 
 // ============================================
-// LINE通知
+// Discord通知
+// ============================================
+
+async function sendDiscordNotify(message: string, urgent: boolean = false): Promise<boolean> {
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  
+  if (!webhookUrl) {
+    return false;
+  }
+  
+  try {
+    // 緊急時は@everyoneでメンション
+    const content = urgent ? `@everyone\n${message}` : message;
+    
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        content: content,
+        username: "チケットBot",
+      }),
+    });
+    
+    if (response.ok) {
+      log.info("Discord通知を送信しました");
+      return true;
+    } else {
+      log.warn(`Discord通知の送信に失敗: ${response.status}`);
+      return false;
+    }
+  } catch (error) {
+    log.warn(`Discord通知エラー: ${error}`);
+    return false;
+  }
+}
+
+// ============================================
+// LINE通知（廃止予定）
 // ============================================
 
 async function sendLineNotify(message: string): Promise<boolean> {
@@ -738,6 +777,9 @@ async function monitorAndPurchase(page: Page): Promise<boolean> {
           console.log("=".repeat(60) + "\n");
           await playNotification();
           
+          // Discord通知（購入権利獲得時）- 緊急通知
+          await sendDiscordNotify(`🎊🎊🎊 購入権利を獲得しました！！！ 🎊🎊🎊\n\n📱 **今すぐSMS認証を完了してください！**\n\n枚数: ${selectedText || "不明"}\n試行回数: ${failedCount + 1}回\n所要時間: ${retryElapsedMin}分${retryElapsedSecRemainder}秒`, true);
+          
           // LINE通知（購入権利獲得時）
           if (config.lineNotify.notifyOn.purchaseSuccess) {
             await sendLineNotify(`🎊 RELIEF Ticket\n\n購入権利を獲得しました！！！\n\n枚数: ${selectedText || "不明"}\n試行回数: ${failedCount + 1}回\n所要時間: ${retryElapsedMin}分${retryElapsedSecRemainder}秒\n\n⚠️ 今すぐ購入手続きを完了してください！`);
@@ -897,6 +939,10 @@ async function monitorWithDOM(page: Page): Promise<boolean> {
           log.highlight("ここから先は手動で入力してください！！！");
           console.log("=".repeat(60) + "\n");
           await playNotification();
+          
+          // Discord通知（購入権利獲得時）- 緊急通知
+          await sendDiscordNotify(`🎊🎊🎊 購入権利を獲得しました！！！ 🎊🎊🎊\n\n📱 **今すぐSMS認証を完了してください！**\n\n枚数: ${selectedText || "不明"}\n試行回数: ${failedCount + 1}回`, true);
+          
           return true;
         }
         
@@ -1006,6 +1052,10 @@ async function monitorHybrid(page: Page): Promise<boolean> {
           log.highlight("ここから先は手動で入力してください！！！");
           console.log("=".repeat(60) + "\n");
           await playNotification();
+          
+          // Discord通知（購入権利獲得時）- 緊急通知
+          await sendDiscordNotify(`🎊🎊🎊 購入権利を獲得しました！！！ 🎊🎊🎊\n\n📱 **今すぐSMS認証を完了してください！**\n\n枚数: ${selectedText || "不明"}\n試行回数: ${failedCount + 1}回`, true);
+          
           return true;
         }
         
@@ -1117,6 +1167,9 @@ async function waitForElement(page: Page): Promise<boolean> {
           log.success(`所要時間: ${retryElapsedMin}分${retryElapsedSecRemainder}秒`);
           log.highlight("ここから先は手動で入力してください！");
           console.log("=".repeat(60) + "\n");
+          
+          // Discord通知（購入権利獲得時）- 緊急通知
+          await sendDiscordNotify(`🎊🎊🎊 購入権利を獲得しました！！！ 🎊🎊🎊\n\n📱 **今すぐSMS認証を完了してください！**\n\n枚数: ${selectedText || "不明"}\n試行回数: ${failedCount + 1}回\n所要時間: ${retryElapsedMin}分${retryElapsedSecRemainder}秒`, true);
           
           // LINE通知（購入権利獲得時）
           if (config.lineNotify.notifyOn.purchaseSuccess) {

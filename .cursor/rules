@@ -112,3 +112,36 @@
 ## 注意事項
 - より良い技術スタックの案があれば提案する
 - コマンドの提示ではなく、実行まで行う
+
+---
+
+# RELIEF Ticket チケット購入Bot
+
+## 概要
+RELIEF Ticket (https://relief-ticket.jp) のリセールチケットを自動監視・購入するBot
+
+## ファイル構成
+- `scripts/ticket-bot.ts` - メインのBotスクリプト
+- `scripts/ticket-bot-config.ts` - 設定ファイル
+- `scripts/README.md` - 詳細なドキュメント
+- `.env` - ログイン情報（RELIEF_TICKET_EMAIL, RELIEF_TICKET_PASSWORD）
+
+## 使い方
+```bash
+npm run bot  # Botを起動
+```
+
+## 主な設定項目（ticket-bot-config.ts）
+- `targetUrl` - 監視対象のURL
+- `monitorMode.mode` - 監視方式（"reload" / "dom" / "hybrid"）
+- `monitorMode.domPollInterval` - DOM監視間隔（ミリ秒）
+- `monitorMode.hybridReloadInterval` - リロード間隔（ミリ秒）
+- `ticketQuantity.mode` - 枚数選択モード（"any" / "preferred" / "exact"）
+
+## よくある質問
+- **アクセス制限を受けた**: 監視間隔を長くする（domPollInterval: 1000, hybridReloadInterval: 30000）
+- **チケットが取れない**: 監視間隔を短くする（domPollInterval: 200, hybridReloadInterval: 5000）
+- **ログインできない**: .envファイルの認証情報を確認、または手動でログイン
+
+## 詳細
+`scripts/README.md` を参照

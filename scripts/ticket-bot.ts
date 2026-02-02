@@ -812,6 +812,235 @@ async function monitorAndPurchase(page: Page): Promise<boolean> {
   }
 }
 
+// ============================================
+// DOM監視モード（高速検知）
+// ============================================
+
+// DOM監視モード：リロードなしでボタン出現を即座に検知
+async function monitorWithDOM(page: Page): Promise<boolean> {
+  displayConfig();
+  log.info("モード: DOM監視（リロードなし、高速検知）");
+  log.info(`ポーリング間隔: ${config.monitorMode.domPollInterval}ms`);
+  console.log("=".repeat(60) + "\n");
+  
+  log.info("DOM監視を開始します...\n");
+  
+  const { mode, preferredList } = config.ticketQuantity;
+  let checks = 0;
+  let skippedCount = 0;
+  let failedCount = 0;
+  const startTime = Date.now();
+  
+  while (true) {
+    checks++;
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const skipInfo = skippedCount > 0 ? ` | スキップ: ${skippedCount}` : "";
+    const failInfo = failedCount > 0 ? ` | \x1b[31m失敗: ${failedCount}\x1b[0m` : "";
+    process.stdout.write(`\r\x1b[36m[DOM監視]\x1b[0m ${checks}回 | 経過: ${elapsed}秒${skipInfo}${failInfo} | ${new Date().toLocaleTimeString()}   `);
+    
+    // 購入ボタンの存在を高速チェック（evaluate使用で最速）
+    const isAvailable = await page.evaluate(() => {
+      // ボタン、input、リンクから「購入手続きへ」を含むものを検索
+      const buttons = document.querySelectorAll('button, input[type="submit"], a');
+      for (const btn of buttons) {
+        const text = btn.textContent || (btn as HTMLInputElement).value || '';
+        if (text.includes('購入手続きへ')) {
+          return (btn as HTMLElement).offsetParent !== null;
+        }
+      }
+      return false;
+    });
+    
+    if (isAvailable) {
+      console.log("\n");
+      log.success("========================================");
+      log.success("🎉 チケットを検知！即座に購入を試みます...");
+      log.success("========================================");
+      await playNotification();
+      
+      // === 購入処理 ===
+      let selectedText: string | null = null;
+      const retryStartTime = Date.now();
+      let quickRetryCount = 0;
+      
+      while (true) {
+        const retryElapsed = Date.now() - retryStartTime;
+        const retryElapsedSec = Math.floor(retryElapsed / 1000);
+        const retryElapsedMin = Math.floor(retryElapsedSec / 60);
+        const retryElapsedSecRemainder = retryElapsedSec % 60;
+        
+        if (retryElapsed >= config.failureDetection.maxRetryDuration) {
+          console.log("");
+          log.warn(`${retryElapsedMin}分${retryElapsedSecRemainder}秒間リトライしましたが、獲得できませんでした`);
+          log.info("監視を継続します...\n");
+          break;
+        }
+        
+        // 枚数選択
+        const selectResult = await selectQuantity(page);
+        if (selectResult.shouldSkip) {
+          skippedCount++;
+          console.log("");
+          log.warn(`条件に合わないためスキップ`);
+          break;
+        }
+        selectedText = selectResult.selectedText;
+        
+        // 購入ボタンクリック
+        const purchaseResult = await clickPurchaseButton(page);
+        
+        if (purchaseResult.clicked && purchaseResult.success) {
+          console.log("\n" + "=".repeat(60));
+          log.success("🎊🎊🎊 購入権利を獲得！！！ 🎊🎊🎊");
+          log.success(`選択した枚数: ${selectedText || "不明"}`);
+          log.success(`試行回数: ${failedCount + 1}回`);
+          log.highlight("ここから先は手動で入力してください！！！");
+          console.log("=".repeat(60) + "\n");
+          await playNotification();
+          return true;
+        }
+        
+        if (purchaseResult.clicked && !purchaseResult.success) {
+          if (purchaseResult.errorMessage === "売り切れ") {
+            console.log("");
+            log.warn("売り切れました");
+            log.info("監視を継続します...\n");
+            break;
+          }
+          
+          failedCount++;
+          quickRetryCount++;
+          
+          const timeDisplay = `${retryElapsedMin}:${retryElapsedSecRemainder.toString().padStart(2, '0')}`;
+          const maxTimeMin = Math.floor(config.failureDetection.maxRetryDuration / 60000);
+          process.stdout.write(`\r\x1b[33m[他ユーザー購入中]\x1b[0m ${timeDisplay}/${maxTimeMin}:00 | 試行: ${failedCount}回   `);
+          
+          // リトライ
+          await page.waitForTimeout(config.failureDetection.quickRetryDelay);
+          continue;
+        }
+        
+        break;
+      }
+    }
+    
+    // 高速ポーリング（リロードなし）
+    await page.waitForTimeout(config.monitorMode.domPollInterval);
+  }
+}
+
+// ハイブリッドモード：DOM監視 + 定期リロード
+async function monitorHybrid(page: Page): Promise<boolean> {
+  displayConfig();
+  log.info("モード: ハイブリッド（DOM監視 + 定期リロード）");
+  log.info(`ポーリング間隔: ${config.monitorMode.domPollInterval}ms`);
+  log.info(`リロード間隔: ${config.monitorMode.hybridReloadInterval / 1000}秒`);
+  console.log("=".repeat(60) + "\n");
+  
+  log.info("ハイブリッド監視を開始します...\n");
+  
+  let checks = 0;
+  let skippedCount = 0;
+  let failedCount = 0;
+  const startTime = Date.now();
+  let lastReloadTime = Date.now();
+  
+  while (true) {
+    checks++;
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const nextReload = Math.max(0, Math.floor((config.monitorMode.hybridReloadInterval - (Date.now() - lastReloadTime)) / 1000));
+    const skipInfo = skippedCount > 0 ? ` | スキップ: ${skippedCount}` : "";
+    const failInfo = failedCount > 0 ? ` | \x1b[31m失敗: ${failedCount}\x1b[0m` : "";
+    process.stdout.write(`\r\x1b[36m[ハイブリッド]\x1b[0m ${checks}回 | 経過: ${elapsed}秒 | 次リロード: ${nextReload}秒${skipInfo}${failInfo}   `);
+    
+    // 購入ボタンの存在を高速チェック
+    const isAvailable = await page.evaluate(() => {
+      const buttons = document.querySelectorAll('button, input[type="submit"], a');
+      for (const btn of buttons) {
+        const text = btn.textContent || (btn as HTMLInputElement).value || '';
+        if (text.includes('購入手続きへ')) {
+          return (btn as HTMLElement).offsetParent !== null;
+        }
+      }
+      return false;
+    });
+    
+    if (isAvailable) {
+      console.log("\n");
+      log.success("========================================");
+      log.success("🎉 チケットを検知！即座に購入を試みます...");
+      log.success("========================================");
+      await playNotification();
+      
+      // === 購入処理（DOM監視モードと同じ） ===
+      let selectedText: string | null = null;
+      const retryStartTime = Date.now();
+      
+      while (true) {
+        const retryElapsed = Date.now() - retryStartTime;
+        const retryElapsedSec = Math.floor(retryElapsed / 1000);
+        const retryElapsedMin = Math.floor(retryElapsedSec / 60);
+        const retryElapsedSecRemainder = retryElapsedSec % 60;
+        
+        if (retryElapsed >= config.failureDetection.maxRetryDuration) {
+          console.log("");
+          log.warn(`${retryElapsedMin}分${retryElapsedSecRemainder}秒間リトライしましたが、獲得できませんでした`);
+          log.info("監視を継続します...\n");
+          break;
+        }
+        
+        const selectResult = await selectQuantity(page);
+        if (selectResult.shouldSkip) {
+          skippedCount++;
+          break;
+        }
+        selectedText = selectResult.selectedText;
+        
+        const purchaseResult = await clickPurchaseButton(page);
+        
+        if (purchaseResult.clicked && purchaseResult.success) {
+          console.log("\n" + "=".repeat(60));
+          log.success("🎊🎊🎊 購入権利を獲得！！！ 🎊🎊🎊");
+          log.success(`選択した枚数: ${selectedText || "不明"}`);
+          log.success(`試行回数: ${failedCount + 1}回`);
+          log.highlight("ここから先は手動で入力してください！！！");
+          console.log("=".repeat(60) + "\n");
+          await playNotification();
+          return true;
+        }
+        
+        if (purchaseResult.clicked && !purchaseResult.success) {
+          if (purchaseResult.errorMessage === "売り切れ") {
+            console.log("");
+            log.warn("売り切れました");
+            log.info("監視を継続します...\n");
+            break;
+          }
+          
+          failedCount++;
+          await page.waitForTimeout(config.failureDetection.quickRetryDelay);
+          continue;
+        }
+        
+        break;
+      }
+    }
+    
+    // 定期リロード（ハイブリッドモード）
+    if (Date.now() - lastReloadTime >= config.monitorMode.hybridReloadInterval) {
+      try {
+        await page.reload({ waitUntil: "domcontentloaded", timeout: 10000 });
+        lastReloadTime = Date.now();
+      } catch {
+        // リロード失敗しても続行
+      }
+    }
+    
+    // 高速ポーリング
+    await page.waitForTimeout(config.monitorMode.domPollInterval);
+  }
+}
+
 // 代替モード：要素の出現を待つ（リフレッシュなし、JS更新を監視）
 async function waitForElement(page: Page): Promise<boolean> {
   displayConfig();
@@ -987,6 +1216,19 @@ async function main() {
     
     const page = await context.newPage();
     
+    // リソースブロッキング（ページロード高速化）
+    if (config.monitorMode.blockResources) {
+      log.info("リソースブロッキング: 有効（画像/CSS/フォント）");
+      await page.route("**/*", (route) => {
+        const resourceType = route.request().resourceType();
+        if (config.monitorMode.blockedResourceTypes.includes(resourceType)) {
+          route.abort();
+        } else {
+          route.continue();
+        }
+      });
+    }
+    
     // セッション保存のためのイベントリスナー
     // ページ遷移時にセッションを保存
     page.on("load", async () => {
@@ -1027,12 +1269,16 @@ async function main() {
       log.success("ログイン済みです");
     }
     
-    // モード選択（コマンドライン引数で切り替え可能）
-    const mode = process.argv[2] || "refresh";
+    // モード選択（設定ファイルで指定）
+    const monitorModeType = config.monitorMode.mode;
+    log.info(`監視モード: ${monitorModeType}`);
     
-    if (mode === "wait") {
-      await waitForElement(page);
+    if (monitorModeType === "dom") {
+      await monitorWithDOM(page);
+    } else if (monitorModeType === "hybrid") {
+      await monitorHybrid(page);
     } else {
+      // reloadモード（従来方式）
       await monitorAndPurchase(page);
     }
     

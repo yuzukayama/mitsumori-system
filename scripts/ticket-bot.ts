@@ -848,6 +848,20 @@ async function monitorAndPurchase(page: Page): Promise<boolean> {
     
     try {
       await page.reload({ waitUntil: "domcontentloaded", timeout: 10000 });
+      
+      // リロード後にログインページにリダイレクトされていないかチェック
+      const currentUrl = page.url();
+      if (currentUrl.includes("/login") || currentUrl.includes("login")) {
+        console.log("");
+        log.warn("セッションが切れました。自動ログインを試みます...");
+        const loginSuccess = await autoLogin(page);
+        if (loginSuccess) {
+          log.success("再ログインに成功しました");
+          await page.goto(config.targetUrl, { waitUntil: "domcontentloaded" });
+        } else {
+          log.error("再ログインに失敗しました");
+        }
+      }
     } catch {
       log.warn("リロードがタイムアウト、続行します");
     }
@@ -970,6 +984,22 @@ async function monitorWithDOM(page: Page): Promise<boolean> {
       }
     }
     
+    // 定期的にログイン状態をチェック（1分ごと）
+    if (checks % Math.floor(60000 / config.monitorMode.domPollInterval) === 0) {
+      const currentUrl = page.url();
+      if (currentUrl.includes("/login") || !currentUrl.includes("relief-ticket.jp/events")) {
+        console.log("");
+        log.warn("ターゲットページから離れました。復帰を試みます...");
+        if (currentUrl.includes("/login")) {
+          const loginSuccess = await autoLogin(page);
+          if (loginSuccess) {
+            log.success("再ログインに成功しました");
+          }
+        }
+        await page.goto(config.targetUrl, { waitUntil: "domcontentloaded" });
+      }
+    }
+    
     // 高速ポーリング（リロードなし）
     await page.waitForTimeout(config.monitorMode.domPollInterval);
   }
@@ -1081,8 +1111,40 @@ async function monitorHybrid(page: Page): Promise<boolean> {
       try {
         await page.reload({ waitUntil: "domcontentloaded", timeout: 10000 });
         lastReloadTime = Date.now();
+        
+        // リロード後にログインページにリダイレクトされていないかチェック
+        const currentUrl = page.url();
+        if (currentUrl.includes("/login") || currentUrl.includes("login")) {
+          console.log("");
+          log.warn("セッションが切れました。自動ログインを試みます...");
+          const loginSuccess = await autoLogin(page);
+          if (loginSuccess) {
+            log.success("再ログインに成功しました");
+            await page.goto(config.targetUrl, { waitUntil: "domcontentloaded" });
+            lastReloadTime = Date.now();
+          } else {
+            log.error("再ログインに失敗しました");
+          }
+        }
       } catch {
         // リロード失敗しても続行
+      }
+    }
+    
+    // 定期的にログイン状態をチェック（5分ごと）
+    if (checks % Math.floor(300000 / config.monitorMode.domPollInterval) === 0) {
+      const currentUrl = page.url();
+      if (currentUrl.includes("/login") || !currentUrl.includes("relief-ticket.jp/events")) {
+        console.log("");
+        log.warn("ターゲットページから離れました。復帰を試みます...");
+        if (currentUrl.includes("/login")) {
+          const loginSuccess = await autoLogin(page);
+          if (loginSuccess) {
+            log.success("再ログインに成功しました");
+          }
+        }
+        await page.goto(config.targetUrl, { waitUntil: "domcontentloaded" });
+        lastReloadTime = Date.now();
       }
     }
     

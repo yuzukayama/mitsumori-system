@@ -797,6 +797,14 @@ async function monitorAndPurchase(page: Page): Promise<boolean> {
             break; // 通常の監視ループに戻る
           }
           
+          // 2025年8月仕様変更対応：「他のお客様が手続き中」= 購入権は別の人が獲得
+          // リトライしても意味がないので、すぐに監視に戻って次の出品を狙う
+          if (purchaseResult.errorMessage?.includes("他のお客様")) {
+            console.log("");
+            log.info("他のお客様が購入権を獲得しました。次の出品を監視します...\n");
+            break;
+          }
+          
           // 購入失敗（他のお客様が先に購入中）
           failedCount++;
           quickRetryCount++;
@@ -968,6 +976,14 @@ async function monitorWithDOM(page: Page): Promise<boolean> {
             break;
           }
           
+          // 2025年8月仕様変更対応：「他のお客様が手続き中」= 購入権は別の人が獲得
+          // リトライしても意味がないので、すぐに監視に戻って次の出品を狙う
+          if (purchaseResult.errorMessage?.includes("他のお客様")) {
+            console.log("");
+            log.info("他のお客様が購入権を獲得しました。次の出品を監視します...\n");
+            break;
+          }
+          
           failedCount++;
           quickRetryCount++;
           
@@ -1094,6 +1110,14 @@ async function monitorHybrid(page: Page): Promise<boolean> {
             console.log("");
             log.warn("売り切れました");
             log.info("監視を継続します...\n");
+            break;
+          }
+          
+          // 2025年8月仕様変更対応：「他のお客様が手続き中」= 購入権は別の人が獲得
+          // リトライしても意味がないので、すぐに監視に戻って次の出品を狙う
+          if (purchaseResult.errorMessage?.includes("他のお客様")) {
+            console.log("");
+            log.info("他のお客様が購入権を獲得しました。次の出品を監視します...\n");
             break;
           }
           

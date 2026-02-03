@@ -223,7 +223,7 @@ async function autoLogin(page: Page): Promise<boolean> {
     } else {
       // ログインページのURLに直接アクセス
       log.info("ログインリンクが見つかりません。直接ログインページへ移動します...");
-      await page.goto("https://relief-ticket.jp/login", { waitUntil: "domcontentloaded" });
+      await page.goto("https://my.relief-ticket.jp/login", { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(2000);
     }
     

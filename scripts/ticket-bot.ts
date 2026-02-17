@@ -331,18 +331,52 @@ type PerformanceInfo = {
  */
 async function findTargetPerformance(page: Page): Promise<PerformanceInfo | null> {
   try {
-    // ページ全体のテキストを取得して、フィルター条件に一致するか確認
     const pageText = await page.textContent('body') || "";
     
-    // フィルターが有効な場合
+    // 日付フィルターが有効な場合
     if (config.targetPerformance.enabled && config.targetPerformance.filters.length > 0) {
-      // すべてのフィルター条件に一致するか確認
       const allFiltersMatch = config.targetPerformance.filters.every(filter => 
         pageText.includes(filter)
       );
-      
       if (!allFiltersMatch) {
-        return null; // フィルター条件に一致しない
+        return null;
+      }
+    }
+    
+    // 会場フィルターが有効な場合：ボタンの近くにある会場名をチェック
+    if (config.venueFilter.enabled && config.venueFilter.allowedVenues.length > 0) {
+      const allowedVenues = config.venueFilter.allowedVenues;
+      
+      // 購入ボタンを全て取得し、それぞれの親要素（公演行）に会場名が含まれるかチェック
+      const matchedButton = await page.evaluate((venues: string[]) => {
+        const buttons = document.querySelectorAll('button, input[type="submit"], a');
+        for (const btn of buttons) {
+          const text = btn.textContent || (btn as HTMLInputElement).value || '';
+          if (!text.includes('購入手続きへ')) continue;
+          if ((btn as HTMLElement).offsetParent === null) continue; // 非表示
+          
+          // ボタンの親要素を辿って公演情報テキストを取得
+          let parent: HTMLElement | null = btn as HTMLElement;
+          let sectionText = '';
+          for (let i = 0; i < 10; i++) {
+            parent = parent?.parentElement || null;
+            if (!parent) break;
+            sectionText = parent.textContent || '';
+            // 十分な情報がある親要素（会場名を含みそうなレベル）
+            if (sectionText.length > 50) break;
+          }
+          
+          // 許可会場リストのいずれかが含まれるかチェック
+          const venueMatch = venues.some(venue => sectionText.includes(venue));
+          if (venueMatch) {
+            return true;
+          }
+        }
+        return false;
+      }, allowedVenues);
+      
+      if (!matchedButton) {
+        return null; // 許可会場の公演がない
       }
     }
     
@@ -353,7 +387,7 @@ async function findTargetPerformance(page: Page): Promise<PerformanceInfo | null
       if (element && await element.isVisible()) {
         return {
           element,
-          text: pageText.substring(0, 200), // 最初の200文字
+          text: pageText.substring(0, 200),
           hasButton: true,
         };
       }
@@ -668,6 +702,12 @@ function displayConfig() {
   console.log("\n" + "=".repeat(60));
   log.highlight("RELIEF Ticket チケット監視Bot 起動");
   console.log("=".repeat(60));
+  
+  // ターゲット情報
+  const activeTarget = config.targets.find(t => t.enabled);
+  if (activeTarget) {
+    log.info(`ターゲット: ${activeTarget.name}`);
+  }
   log.info(`URL: ${config.targetUrl}`);
   log.info(`監視間隔: ${config.refreshInterval}ms`);
   
@@ -682,6 +722,14 @@ function displayConfig() {
     case "exact":
       log.info(`枚数選択: [exactモード] ${preferredList.join(" または ")} のみ購入`);
       break;
+  }
+  
+  // 会場フィルター
+  if (config.venueFilter.enabled) {
+    log.info(`会場フィルター: ON（${config.venueFilter.allowedVenues.length}会場）`);
+    log.info(`  対象: ${config.venueFilter.allowedVenues.join(", ")}`);
+  } else {
+    log.info(`会場フィルター: OFF（全会場対象）`);
   }
   
   console.log("=".repeat(60) + "\n");
@@ -902,18 +950,31 @@ async function monitorWithDOM(page: Page): Promise<boolean> {
     const failInfo = failedCount > 0 ? ` | \x1b[31m失敗: ${failedCount}\x1b[0m` : "";
     process.stdout.write(`\r\x1b[36m[DOM監視]\x1b[0m ${checks}回 | 経過: ${elapsed}秒${skipInfo}${failInfo} | ${new Date().toLocaleTimeString()}   `);
     
-    // 購入ボタンの存在を高速チェック（evaluate使用で最速）
-    const isAvailable = await page.evaluate(() => {
-      // ボタン、input、リンクから「購入手続きへ」を含むものを検索
+    // 購入ボタンの存在を高速チェック（evaluate使用で最速）+ 会場フィルター
+    const venueFilterEnabled = config.venueFilter.enabled;
+    const allowedVenues = config.venueFilter.allowedVenues;
+    const isAvailable = await page.evaluate(({ venueFilterEnabled, allowedVenues }: { venueFilterEnabled: boolean, allowedVenues: string[] }) => {
       const buttons = document.querySelectorAll('button, input[type="submit"], a');
       for (const btn of buttons) {
         const text = btn.textContent || (btn as HTMLInputElement).value || '';
-        if (text.includes('購入手続きへ')) {
-          return (btn as HTMLElement).offsetParent !== null;
+        if (!text.includes('購入手続きへ')) continue;
+        if ((btn as HTMLElement).offsetParent === null) continue;
+        
+        if (venueFilterEnabled && allowedVenues.length > 0) {
+          let parent: HTMLElement | null = btn as HTMLElement;
+          let sectionText = '';
+          for (let i = 0; i < 10; i++) {
+            parent = parent?.parentElement || null;
+            if (!parent) break;
+            sectionText = parent.textContent || '';
+            if (sectionText.length > 50) break;
+          }
+          if (!allowedVenues.some(v => sectionText.includes(v))) continue;
         }
+        return true;
       }
       return false;
-    });
+    }, { venueFilterEnabled, allowedVenues });
     
     if (isAvailable) {
       console.log("\n");
@@ -1045,17 +1106,29 @@ async function monitorHybrid(page: Page): Promise<boolean> {
     const failInfo = failedCount > 0 ? ` | \x1b[31m失敗: ${failedCount}\x1b[0m` : "";
     process.stdout.write(`\r\x1b[36m[ハイブリッド]\x1b[0m ${checks}回 | 経過: ${elapsed}秒 | 次リロード: ${nextReload}秒${skipInfo}${failInfo}   `);
     
-    // 購入ボタンの存在を高速チェック
-    const isAvailable = await page.evaluate(() => {
+    // 購入ボタンの存在を高速チェック + 会場フィルター
+    const isAvailable = await page.evaluate(({ venueFilterEnabled, allowedVenues }: { venueFilterEnabled: boolean, allowedVenues: string[] }) => {
       const buttons = document.querySelectorAll('button, input[type="submit"], a');
       for (const btn of buttons) {
         const text = btn.textContent || (btn as HTMLInputElement).value || '';
-        if (text.includes('購入手続きへ')) {
-          return (btn as HTMLElement).offsetParent !== null;
+        if (!text.includes('購入手続きへ')) continue;
+        if ((btn as HTMLElement).offsetParent === null) continue;
+        
+        if (venueFilterEnabled && allowedVenues.length > 0) {
+          let parent: HTMLElement | null = btn as HTMLElement;
+          let sectionText = '';
+          for (let i = 0; i < 10; i++) {
+            parent = parent?.parentElement || null;
+            if (!parent) break;
+            sectionText = parent.textContent || '';
+            if (sectionText.length > 50) break;
+          }
+          if (!allowedVenues.some(v => sectionText.includes(v))) continue;
         }
+        return true;
       }
       return false;
-    });
+    }, { venueFilterEnabled: config.venueFilter.enabled, allowedVenues: config.venueFilter.allowedVenues });
     
     if (isAvailable) {
       console.log("\n");

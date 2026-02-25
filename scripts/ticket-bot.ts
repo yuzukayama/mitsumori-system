@@ -25,6 +25,23 @@ import { config } from "./ticket-bot-config";
 // 環境変数を読み込み
 dotenvConfig();
 
+// ランダムなリロード間隔を取得（手動操作に見せかける）
+function getReloadInterval(): number {
+  const rr = config.monitorMode.randomReload;
+  if (rr?.enabled) {
+    return Math.floor(Math.random() * (rr.max - rr.min + 1)) + rr.min;
+  }
+  return config.monitorMode.hybridReloadInterval;
+}
+
+function getRefreshInterval(): number {
+  const rr = config.monitorMode.randomReload;
+  if (rr?.enabled) {
+    return Math.floor(Math.random() * (rr.max - rr.min + 1)) + rr.min;
+  }
+  return config.refreshInterval;
+}
+
 // コンソール出力用のユーティリティ（色付き）
 const log = {
   info: (msg: string) => console.log(`\x1b[36m[INFO]\x1b[0m ${new Date().toLocaleTimeString()} - ${msg}`),
@@ -899,8 +916,8 @@ async function monitorAndPurchase(page: Page): Promise<boolean> {
       }
     }
     
-    // 待機してリフレッシュ
-    await page.waitForTimeout(config.refreshInterval);
+    // 待機してリフレッシュ（ランダム間隔）
+    await page.waitForTimeout(getRefreshInterval());
     
     try {
       await page.reload({ waitUntil: "domcontentloaded", timeout: 10000 });
@@ -1087,7 +1104,12 @@ async function monitorHybrid(page: Page): Promise<boolean> {
   displayConfig();
   log.info("モード: ハイブリッド（DOM監視 + 定期リロード）");
   log.info(`ポーリング間隔: ${config.monitorMode.domPollInterval}ms`);
-  log.info(`リロード間隔: ${config.monitorMode.hybridReloadInterval / 1000}秒`);
+  const rr = config.monitorMode.randomReload;
+  if (rr?.enabled) {
+    log.info(`リロード間隔: ${rr.min / 1000}〜${rr.max / 1000}秒（ランダム）`);
+  } else {
+    log.info(`リロード間隔: ${config.monitorMode.hybridReloadInterval / 1000}秒`);
+  }
   console.log("=".repeat(60) + "\n");
   
   log.info("ハイブリッド監視を開始します...\n");
@@ -1101,7 +1123,7 @@ async function monitorHybrid(page: Page): Promise<boolean> {
   while (true) {
     checks++;
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
-    const nextReload = Math.max(0, Math.floor((config.monitorMode.hybridReloadInterval - (Date.now() - lastReloadTime)) / 1000));
+    const nextReload = Math.max(0, Math.floor((getReloadInterval() - (Date.now() - lastReloadTime)) / 1000));
     const skipInfo = skippedCount > 0 ? ` | スキップ: ${skippedCount}` : "";
     const failInfo = failedCount > 0 ? ` | \x1b[31m失敗: ${failedCount}\x1b[0m` : "";
     process.stdout.write(`\r\x1b[36m[ハイブリッド]\x1b[0m ${checks}回 | 経過: ${elapsed}秒 | 次リロード: ${nextReload}秒${skipInfo}${failInfo}   `);
@@ -1203,8 +1225,9 @@ async function monitorHybrid(page: Page): Promise<boolean> {
       }
     }
     
-    // 定期リロード（ハイブリッドモード）
-    if (Date.now() - lastReloadTime >= config.monitorMode.hybridReloadInterval) {
+    // 定期リロード（ハイブリッドモード）- ランダム間隔対応
+    const currentReloadInterval = getReloadInterval();
+    if (Date.now() - lastReloadTime >= currentReloadInterval) {
       try {
         await page.reload({ waitUntil: "domcontentloaded", timeout: 10000 });
         lastReloadTime = Date.now();

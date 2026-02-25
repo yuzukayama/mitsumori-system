@@ -163,12 +163,18 @@ export const config = {
     mode: "hybrid" as "reload" | "dom" | "hybrid",
     
     // DOM監視のポーリング間隔（ミリ秒）
-    // ※高速検知モード - アクセス制限のリスクあり
-    domPollInterval: 1000, // 1秒
+    domPollInterval: 750, // 0.75秒（リロード待ち中のチェック用）
     
     // hybridモード時のリロード間隔（ミリ秒）
-    // サイトがSSRの場合、定期的にリロードしないと更新されない
-    hybridReloadInterval: 1000, // 1秒
+    // ランダム化が有効な場合は min〜max の範囲でランダムに決定
+    hybridReloadInterval: 750, // ランダム無効時のデフォルト値
+    
+    // リロード間隔のランダム化（手動操作に見せかける）
+    randomReload: {
+      enabled: true,
+      min: 750,   // 最短 0.75秒
+      max: 3000,  // 最長 3秒
+    },
     
     // 不要なリソースをブロックしてページロードを高速化
     // ※サイトによっては無効にした方が安定
@@ -179,8 +185,8 @@ export const config = {
   },
   
   // ページのリフレッシュ間隔（ミリ秒）- reloadモード時のみ使用
-  // ※アクセス制限を避けるため控えめに設定
-  refreshInterval: 2000, // 2秒（安全モード）
+  // ※randomReloadが有効な場合はそちらの設定が優先される
+  refreshInterval: 750, // 0.75秒
   
   // 要素が出現するまでの最大待機時間（ミリ秒）
   waitTimeout: 5000, // 5秒（素早く反応）

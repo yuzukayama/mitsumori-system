@@ -1,5 +1,5 @@
 {
-  "name": "temp-app",
+  "name": "mitsumori-system",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,17 +7,26 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "bot": "npx tsx scripts/ticket-bot.ts",
-    "bot:wait": "npx tsx scripts/ticket-bot.ts wait"
+    "db:migrate": "npx prisma migrate dev",
+    "db:push": "npx prisma db push",
+    "db:studio": "npx prisma studio",
+    "db:generate": "npx prisma generate"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.3.0",
-    "dotenv": "^17.2.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "crypto-randomuuid": "^1.0.0",
+    "dotenv": "^17.3.1",
+    "exceljs": "^4.4.0",
+    "lucide-react": "^0.577.0",
     "next": "16.1.4",
+    "next-auth": "^5.0.0-beta.30",
     "prisma": "^7.3.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "xlsx": "^0.18.5"
+    "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -26,9 +35,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.4",
-    "playwright": "^1.50.0",
     "tailwindcss": "^4",
-    "tsx": "^4.19.0",
     "typescript": "^5"
   }
 }

@@ -1,0 +1,27 @@
+---
+description: Next.js 15 App Router のコーディング規約
+globs: src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Next.js 15 規約
+
+## App Router
+- Server Components をデフォルトで使用
+- `"use client"` は状態管理・イベントハンドラが必要な場合のみ
+- データ取得は Server Components 内で直接 Prisma を呼ぶ
+
+## ファイル構成
+- `page.tsx` — ルートコンポーネント
+- `layout.tsx` — レイアウト
+- `loading.tsx` — ローディングUI
+- `error.tsx` — エラーUI
+
+## API Routes
+- `src/app/api/` 配下に配置
+- Request/Response の型を明示する
+- エラーは適切なHTTPステータスコードで返す
+
+## 認証
+- 管理画面 (`/admin/*`): NextAuth.js middleware で保護
+- ポータル (`/portal/[token]`): トークン検証を各ページで実施

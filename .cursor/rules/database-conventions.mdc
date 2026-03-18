@@ -1,0 +1,22 @@
+---
+description: Prisma / PostgreSQL のデータベース規約
+globs: prisma/**,src/lib/prisma*
+alwaysApply: false
+---
+
+# データベース規約
+
+## Prisma
+- `prisma/schema.prisma` にスキーマ定義
+- マイグレーションは `npx prisma migrate dev --name <説明>` で作成
+- Prisma Client は `src/lib/prisma.ts` でシングルトンとしてエクスポート
+
+## 命名規則
+- テーブル名: PascalCase（Prisma model名）
+- カラム名: camelCase
+- リレーション: 明示的に `@relation` を記述
+
+## 見積データの数値ルール
+- 数量 (quantity): `Decimal(12,2)` — 小数点以下2桁
+- 単価 (unitPrice): `Int` — 整数のみ
+- 金額 (amount): `Int` — floor(数量 × 単価) で算出、小数点以下切り捨て

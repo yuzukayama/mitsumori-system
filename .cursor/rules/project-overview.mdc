@@ -1,0 +1,39 @@
+---
+description: 見積徴収管理システムのプロジェクト全体ルール。開発方針・技術スタック・作業フローを定義。
+alwaysApply: true
+---
+
+# 見積徴収管理システム — プロジェクトルール
+
+## プロジェクト概要
+- 三和建設の協力会社向け見積依頼・回収・比較を一元管理するWebシステム
+- 詳細は `docs/requirements.md` と `docs/technical-spec.md` を必ず参照
+
+## 開発ルール（重要）
+1. **実装前に要件を確認**: 作業前に `docs/requirements.md` を参照する
+2. **ユーザーの「OK」なしに実装を進めない**: 不明点は必ず質問する
+3. **日本語で応答する**
+
+## 技術スタック
+- Next.js 15 (App Router) / TypeScript / Tailwind CSS 4 / shadcn/ui
+- Prisma / PostgreSQL (Cloud SQL)
+- NextAuth.js v5 (Google OAuth)
+- Google Cloud Run / Google Workspace 連携
+- ExcelJS（Excel出力）
+
+## インフラ情報
+- GCPプロジェクト: `sgc-mitsumori-system`
+- GitHubリポジトリ: `yuzukayama/mitsumori-system`
+- Workspaceアカウント: `yuzuka.yamazaki@sgc-web.co.jp`
+
+## コーディング規約
+- TypeScript strict mode を使用
+- コンポーネントは関数コンポーネント + Server Components 優先
+- パスエイリアス `@/` を使用（例: `@/components/ui/button`）
+- 日本語コメントは避け、変数名・関数名は英語で記述
+
+## フェーズ管理
+- Phase 1（MVP）: 三和書式の見積フロー全体
+- Phase 2: 協力会社書式（ファイルアップロード）
+- Phase 3: OCR・リマインド自動化・高度機能
+- 現在のフェーズ: **Phase 1**

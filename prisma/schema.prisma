@@ -175,7 +175,8 @@ model EstimateRequest {
   id            String        @id @default(cuid())
   projectId     String
   partnerId     String
-  templateId    String
+  templateId    String?
+  tradeType     String
   token         String        @unique @db.VarChar(64)
   tokenExpiresAt DateTime
   status        RequestStatus @default(DRAFT)
@@ -183,12 +184,14 @@ model EstimateRequest {
   deadline      DateTime?
   requestedAt   DateTime?
   submittedAt   DateTime?
+  totalAmount   Int?
+  notes         String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   project     Project          @relation(fields: [projectId], references: [id])
   partner     Partner          @relation(fields: [partnerId], references: [id])
-  template    Template         @relation(fields: [templateId], references: [id])
+  template    Template?        @relation(fields: [templateId], references: [id])
   header      EstimateHeader?
   sheets      EstimateSheet[]
   attachments EstimateAttachment[]

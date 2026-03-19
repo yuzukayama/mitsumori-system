@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export default async function ProjectsPage({ searchParams }: Props) {
   const statusFilter = params.status ?? "";
   const branchFilter = params.branch ?? "";
 
-  const where: Parameters<typeof prisma.project.findMany>[0]["where"] = {};
+  const where: Prisma.ProjectWhereInput = {};
 
   if (q) {
     where.OR = [

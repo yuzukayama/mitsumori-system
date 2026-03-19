@@ -1,0 +1,15 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+node_modules
+.next
+*.log
+.DS_Store
+estimate-system
+scripts
+*.md
+.gcloudignore
+.dockerignore
+docker-compose.yml

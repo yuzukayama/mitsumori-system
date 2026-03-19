@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export default async function PartnersPage({ searchParams }: Props) {
   const activeFilter = params.active ?? "";
   const tradeFilter = params.trade ?? "";
 
-  const where: Parameters<typeof prisma.partner.findMany>[0]["where"] = {};
+  const where: Prisma.PartnerWhereInput = {};
 
   if (q) {
     where.OR = [

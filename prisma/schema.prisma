@@ -57,20 +57,26 @@ model Session {
 // ============================================================
 
 model Project {
-  id           String   @id @default(cuid())
-  code         String
-  nameInternal String
-  namePublic   String
-  address      String?
-  managerId    String
-  startDate    DateTime?
-  endDate      DateTime?
-  totalArea    Decimal?  @db.Decimal(10, 2)
-  buildingType String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id              String   @id @default(cuid())
+  code            String   @unique
+  nameInternal    String
+  namePublic      String
+  address         String?
+  managerId       String?
+  salesManager    String?
+  salesStatus     String?
+  structure       String?
+  contractAmount  Int?
+  tradeTypes      String[] @default([])
+  startDate       DateTime?
+  endDate         DateTime?
+  totalArea       Decimal?  @db.Decimal(10, 2)
+  buildingType    String?
+  branch          String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  manager           User              @relation(fields: [managerId], references: [id])
+  manager           User?              @relation(fields: [managerId], references: [id])
   estimateRequests   EstimateRequest[]
 
   @@index([code])
